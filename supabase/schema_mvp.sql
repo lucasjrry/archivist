@@ -5,7 +5,9 @@ create table profiles(
   avatar_url text,
   bio text,
   is_public boolean default false,
-  updated_at timestamp with time zone
+  updated_at timestamp with time zone,
+  full_name text,
+  show_full_name boolean default false
 );
 
 create table closet_items (
