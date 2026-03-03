@@ -2,6 +2,8 @@
 
 A personal fashion archive and social platform.
 
+*Digitize your wardrobe, curate your personal style, and connect with a global catalog.*
+
 ## 🛠 Tech Stack
 * **Framework:** Next.js 15 (App Router)
 * **Language:** TypeScript
