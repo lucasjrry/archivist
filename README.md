@@ -4,6 +4,8 @@ A personal fashion archive and social platform.
 
 *Digitize your wardrobe, curate your personal style, and connect with a global catalog.*
 
+<img width="1440" height="670" alt="archivist_mvp" src="https://github.com/user-attachments/assets/af90cedc-33f3-4b9e-a861-4a54c9710263" />
+
 ## 🛠 Tech Stack
 * **Framework:** Next.js 15 (App Router)
 * **Language:** TypeScript
