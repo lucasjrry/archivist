@@ -7,20 +7,20 @@ import { createClient } from '@/utils/supabase/server'
 export async function login(formData: FormData) {
   const supabase = await createClient()
 
-  // 1. Extract the data from the HTML form
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
-  // 2. Ask Supabase to sign the user in
+  if (!email || !password) {
+    return { error: "Email and password are required." }
+  }
+
   const { error, data } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
 
   if (error) {
-    // Ideally, we'd send this error back to the UI, 
-    // but for MVP we will just redirect to an error page
-    redirect(`/error?message=${encodeURIComponent(error.message)}`)
+    return { error: error.message }
   }
 
   if (data.user) {
@@ -37,7 +37,6 @@ export async function login(formData: FormData) {
     }
   }
 
-  
   revalidatePath('/', 'layout')
   redirect('/')
 }
@@ -48,15 +47,16 @@ export async function signup(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
-  // 1. Create the user in auth.users
-  // (This triggers the SQL function to create the Profile automatically)
+  if (!email || !password) {
+    return { error: "Email and password are required." }
+  }
 
   const allowedEmailsString = process.env.ALLOWED_EMAILS || ""
-  const allowedEmails = allowedEmailsString.split(',')
+  const allowedEmails = allowedEmailsString.split(',').map(e => e.trim().toLowerCase())
 
-  // 2. Check the allowlist
-  if (!allowedEmails.includes(email)) {
-    redirect('/error?message=Archivist is currently in private development.')
+  // Check allowlist if it's set
+  if (allowedEmails.length > 0 && allowedEmails[0] !== "" && !allowedEmails.includes(email.trim().toLowerCase())) {
+    return { error: "Archivist is currently in private development. Contact the administrator to request access." }
   }
 
   const { data, error } = await supabase.auth.signUp({
@@ -65,15 +65,26 @@ export async function signup(formData: FormData) {
   })
 
   if (error) {
-    redirect(`/error?message=${encodeURIComponent(error.message)}`)
+    return { error: error.message }
   }
 
   if (data.user && data.session === null) {
-    // For now, we'll just send them to the error page with a success message
-    // Later, you could build a dedicated '/verify-email' page
-    redirect('/error?message=Check your email to verify your account before logging in.')
+    return { 
+      success: true, 
+      message: "Check your email to verify your account before logging in." 
+    }
   }
 
   revalidatePath('/', 'layout')
   redirect('/account-setup')
+}
+
+export async function logout() {
+  const supabase = await createClient()
+  const { error } = await supabase.auth.signOut()
+  if (error) {
+    console.error("Sign out error:", error.message)
+  }
+  revalidatePath('/', 'layout')
+  redirect('/')
 }

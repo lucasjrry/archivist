@@ -13,6 +13,7 @@ interface ClosetItem {
   image_url: string | null;
   created_at?: string; // Added created_at for client-side sorting
   is_favorite?: boolean; // Added for favoriting functionality
+  purchase_price?: number | null;
 }
 
 interface DashboardProps {
@@ -294,13 +295,22 @@ export default function PrivateDashboard({ displayName, bio, items }: DashboardP
                     <p className="text-sm font-medium text-black tracking-tight leading-snug truncate">
                       {item.model}
                     </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-gray-400 font-light italic">
-                        {item.color}
-                      </span>
-                      <span className="text-[10px] text-gray-200 uppercase tracking-widest">
-                        {item.category}
-                      </span>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <div className="flex items-center gap-2">
+                        {item.color && (
+                          <span className="text-[10px] text-gray-400 font-light italic">
+                            {item.color}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-gray-200 uppercase tracking-widest">
+                          {item.category}
+                        </span>
+                      </div>
+                      {item.purchase_price !== null && item.purchase_price !== undefined && (
+                        <span className="text-[10px] font-medium text-neutral-500 font-mono">
+                          ${item.purchase_price}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

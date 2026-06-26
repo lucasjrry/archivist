@@ -5,7 +5,7 @@ export default function PublicLanding() {
     <main className="min-h-screen flex flex-col items-center justify-center bg-white px-6">
       <div className="max-w-3xl text-center">
         {/* The Branding */}
-        <h1 className="text-6xl font-bold tracking-tighter text-black mb-4">
+        <h1 className="brand-logo text-6xl text-black mb-4">
           Archivist
         </h1>
         

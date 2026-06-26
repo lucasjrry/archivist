@@ -11,6 +11,7 @@ const CATEGORIES = ["Outerwear", "Tops", "Bottoms", "Footwear", "Accessories", "
 
 export default function AddItemDrawer({ isOpen, onClose }: Props) {
   const [loading, setLoading] = useState(false);
+  const [scraperStatus, setScraperStatus] = useState<'loading' | 'success' | 'error' | null>(null);
   const [url, setUrl] = useState("");
   const [foundImages, setFoundImages] = useState<string[]>([]);
   const [isManualImage, setIsManualImage] = useState(false);
@@ -21,7 +22,8 @@ export default function AddItemDrawer({ isOpen, onClose }: Props) {
     brand: "",
     category: "Tops",
     color: "",
-    image_url: ""
+    image_url: "",
+    purchase_price: ""
   });
 
   const [brandSuggestions, setBrandSuggestions] = useState<{ id: string; name: string }[]>([]);
@@ -33,11 +35,12 @@ export default function AddItemDrawer({ isOpen, onClose }: Props) {
     setUrl("");
     setFoundImages([]);
     setIsManualImage(false);
-    setFormData({ model: "", brand: "", category: "Tops", color: "", image_url: "" });
+    setFormData({ model: "", brand: "", category: "Tops", color: "", image_url: "", purchase_price: "" });
     setBrandSuggestions([]);
     setItemSuggestions([]);
     setSelectedBrandId(null);
     setSelectedItemId(null);
+    setScraperStatus(null);
     onClose();
   };
 
@@ -46,13 +49,26 @@ export default function AddItemDrawer({ isOpen, onClose }: Props) {
     setUrl(pastedUrl);
     if (pastedUrl.startsWith('http')) {
       setLoading(true);
+      setScraperStatus('loading');
       const data = await scrapeProductMetadata(pastedUrl);
       if (data) {
         setFoundImages(data.images || []);
         setIsManualImage(false);
-        setFormData(prev => ({ ...prev, model: data.model || "", brand: data.brand || "", image_url: data.images?.[0] || "" }));
+        setFormData(prev => ({ 
+          ...prev, 
+          model: data.model || "", 
+          brand: data.brand || "", 
+          image_url: data.images?.[0] || "",
+          category: data.category || prev.category,
+          purchase_price: data.price !== null && data.price !== undefined ? String(data.price) : ""
+        }));
+        setScraperStatus('success');
+      } else {
+        setScraperStatus('error');
       }
       setLoading(false);
+    } else {
+      setScraperStatus(null);
     }
   };
 
@@ -125,8 +141,10 @@ export default function AddItemDrawer({ isOpen, onClose }: Props) {
       return;
     }
     setLoading(true);
+    const parsedPrice = formData.purchase_price ? parseInt(formData.purchase_price) : null;
     const result = await saveItem({ 
       ...formData, 
+      purchase_price: parsedPrice && !isNaN(parsedPrice) ? parsedPrice : null,
       isManualImage,
       brandId: selectedBrandId,
       canonicalItemId: selectedItemId
@@ -149,8 +167,24 @@ export default function AddItemDrawer({ isOpen, onClose }: Props) {
           <div className="space-y-6 flex-grow">
             {/* Scraper Section */}
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
-              <label className="block text-[10px] uppercase font-bold text-gray-400 mb-2">Option 1: Paste Link</label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-[10px] uppercase font-bold text-gray-400">Option 1: Paste Link</label>
+                {scraperStatus === 'loading' && (
+                  <span className="text-[9px] uppercase tracking-wider text-amber-500 font-bold animate-pulse">Scraping...</span>
+                )}
+                {scraperStatus === 'success' && (
+                  <span className="text-[9px] uppercase tracking-wider text-emerald-500 font-bold">Autofilled ✓</span>
+                )}
+                {scraperStatus === 'error' && (
+                  <span className="text-[9px] uppercase tracking-wider text-rose-500 font-bold">Could not autofill</span>
+                )}
+              </div>
               <input value={url} onChange={handleLinkPaste} placeholder="Paste store URL..." className="w-full bg-transparent border-b border-gray-200 py-2 outline-none text-sm" />
+              {scraperStatus === 'error' && (
+                <p className="text-[9px] text-gray-400 mt-1.5 italic">
+                  We couldn&apos;t automatically scrape details. You can still input them manually below.
+                </p>
+              )}
             </div>
 
             {/* Manual Upload Section */}
@@ -223,6 +257,17 @@ export default function AddItemDrawer({ isOpen, onClose }: Props) {
 
               <input value={formData.color} onChange={e => setFormData({...formData, color: e.target.value})} placeholder="Color" className="w-full border-b py-2 text-sm outline-none font-sans" />
               
+              <div className="relative">
+                <input 
+                  type="number"
+                  value={formData.purchase_price} 
+                  onChange={e => setFormData({...formData, purchase_price: e.target.value})} 
+                  placeholder="Purchase Price ($)" 
+                  className="w-full border-b py-2 text-sm outline-none font-sans"
+                  min="0"
+                />
+              </div>
+
               <div className="flex flex-col gap-1.5">
                 <label className="text-[9px] uppercase tracking-wider font-bold text-gray-400">Category</label>
                 <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full border p-2 text-sm rounded bg-white font-sans text-gray-700 outline-none">
