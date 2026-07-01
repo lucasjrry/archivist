@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import AddItemDrawer from './AddItemDrawer';
 import Image from 'next/image';
-import { toggleFavorite } from '@/app/actions';
+import { toggleFavorite, moveToCloset, deleteItem } from '@/app/actions';
 
 interface ClosetItem {
   id: string;
@@ -18,16 +18,19 @@ interface ClosetItem {
 
 interface DashboardProps {
   displayName: string;
+  username: string;
+  avatarUrl?: string | null;
   bio?: string | null;
   items: ClosetItem[];
+  mode: 'closet' | 'wishlist';
 }
 
 const CATEGORIES = ["Headwear", "Outerwear", "Tops", "Bottoms", "Footwear", "Accessories", "Other"];
 
-export default function PrivateDashboard({ displayName, bio, items }: DashboardProps) {
+export default function PrivateDashboard({ displayName, username, avatarUrl, bio, items, mode }: DashboardProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>(CATEGORIES);
-  const [sortBy, setSortBy] = useState<"recently_added" | "category">("recently_added");
+  const [sortBy, setSortBy] = useState<"recently_added" | "category" | "price_asc" | "price_desc">("recently_added");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [optimisticFavorites, setOptimisticFavorites] = useState<Record<string, boolean>>({});
 
@@ -69,6 +72,33 @@ export default function PrivateDashboard({ displayName, bio, items }: DashboardP
     }
   };
 
+  const handleMoveToCloset = async (e: React.MouseEvent, itemId: string) => {
+    e.stopPropagation();
+    try {
+      const result = await moveToCloset(itemId);
+      if (!result.success) {
+        alert(`Failed to move item to closet: ${result.error}`);
+      }
+    } catch (err) {
+      alert("Failed to move item to closet due to a connection error.");
+    }
+  };
+
+  const handleDeleteItem = async (e: React.MouseEvent, itemId: string, itemModel: string) => {
+    e.stopPropagation();
+    const confirmed = window.confirm(`Are you sure you want to delete "${itemModel}"?`);
+    if (!confirmed) return;
+
+    try {
+      const result = await deleteItem(itemId);
+      if (!result.success) {
+        alert(`Failed to delete item: ${result.error}`);
+      }
+    } catch (err) {
+      alert("Failed to delete item due to a connection error.");
+    }
+  };
+
   // Filter and sort items client-side
   const filteredAndSortedItems = [...items]
     .filter(item => {
@@ -92,6 +122,16 @@ export default function PrivateDashboard({ displayName, bio, items }: DashboardP
           return orderA - orderB;
         }
       }
+      if (sortBy === "price_asc") {
+        const priceA = a.purchase_price !== null && a.purchase_price !== undefined ? a.purchase_price : Infinity;
+        const priceB = b.purchase_price !== null && b.purchase_price !== undefined ? b.purchase_price : Infinity;
+        if (priceA !== priceB) return priceA - priceB;
+      }
+      if (sortBy === "price_desc") {
+        const priceA = a.purchase_price !== null && a.purchase_price !== undefined ? a.purchase_price : -Infinity;
+        const priceB = b.purchase_price !== null && b.purchase_price !== undefined ? b.purchase_price : -Infinity;
+        if (priceA !== priceB) return priceB - priceA;
+      }
       // Fallback/Recently Added: newest first (order determined by database created_at or fallback)
       const dateA = a.created_at ? new Date(a.created_at).getTime() : 0;
       const dateB = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -103,14 +143,38 @@ export default function PrivateDashboard({ displayName, bio, items }: DashboardP
       
       {/* 1. Sidebar: Brand Header & Navigation */}
       <aside className="w-full md:w-64 flex-shrink-0">
-        <header className="mb-10 border-l border-black pl-6">
-          <h2 className="text-3xl font-light tracking-tight leading-tight text-black">
-            <span className="italic">{displayName}&apos;s</span> Archive
-          </h2>
-          <p className="text-gray-400 mt-2 text-[11px] uppercase tracking-widest font-medium leading-relaxed">
-            {tagline}
-          </p>
-        </header>
+        <div className="flex gap-4 items-start mb-10">
+          {/* Profile Picture Box */}
+          <div className="w-16 h-16 bg-neutral-50 border border-neutral-105 flex-shrink-0 relative overflow-hidden rounded-md shadow-2xs">
+            {avatarUrl ? (
+              <Image 
+                src={avatarUrl} 
+                alt={displayName}
+                fill
+                sizes="64px"
+                className="object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-[9px] text-neutral-300 uppercase tracking-widest font-light italic select-none">
+                No Pic
+              </div>
+            )}
+          </div>
+
+          <header className="border-l border-black pl-4 flex-grow min-w-0">
+            <h2 className="text-2xl font-light tracking-tight leading-tight text-black break-words">
+              <span className="italic">{displayName}&apos;s</span> {mode === 'wishlist' ? 'Wishlist' : 'Archive'}
+            </h2>
+            {username && (
+              <p className="text-neutral-400 text-[11px] mt-1.5 lowercase font-medium">
+                @{username}
+              </p>
+            )}
+            <p className="text-gray-400 mt-2 text-[11px] uppercase tracking-widest font-medium leading-relaxed break-words">
+              {tagline}
+            </p>
+          </header>
+        </div>
 
         <nav className="space-y-8 mt-12">
           <div>
@@ -126,23 +190,27 @@ export default function PrivateDashboard({ displayName, bio, items }: DashboardP
               </button>
             </div>
 
-            <ul className="space-y-3 text-xs uppercase tracking-[0.15em] mb-4">
-              <li 
-                onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
-                className={`cursor-pointer transition-colors flex items-center justify-between group ${
-                  showFavoritesOnly 
-                    ? 'text-rose-400 font-bold' 
-                    : 'text-neutral-300 hover:text-neutral-500 font-medium'
-                }`}
-              >
-                <span>Favorites</span>
-                <span className={`text-[10px] ${showFavoritesOnly ? 'text-rose-400 opacity-100' : 'text-neutral-300 opacity-0 group-hover:opacity-100'} transition-opacity`}>
-                  ♥
-                </span>
-              </li>
-            </ul>
+            {mode !== 'wishlist' && (
+              <>
+                <ul className="space-y-3 text-xs uppercase tracking-[0.15em] mb-4">
+                  <li 
+                    onClick={() => setShowFavoritesOnly(!showFavoritesOnly)}
+                    className={`cursor-pointer transition-colors flex items-center justify-between group ${
+                      showFavoritesOnly 
+                        ? 'text-rose-400 font-bold' 
+                        : 'text-neutral-300 hover:text-neutral-500 font-medium'
+                    }`}
+                  >
+                    <span>Favorites</span>
+                    <span className={`text-[10px] ${showFavoritesOnly ? 'text-rose-400 opacity-100' : 'text-neutral-300 opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                      ♥
+                    </span>
+                  </li>
+                </ul>
 
-            <div className="h-px bg-neutral-100 my-4" />
+                <div className="h-px bg-neutral-100 my-4" />
+              </>
+            )}
 
             <ul className="space-y-3 text-xs uppercase tracking-[0.15em]">
               {CATEGORIES.map((cat) => {
@@ -188,6 +256,22 @@ export default function PrivateDashboard({ displayName, bio, items }: DashboardP
               >
                 Category (Top to Bottom)
               </li>
+              <li 
+                onClick={() => setSortBy('price_asc')}
+                className={`cursor-pointer transition-colors ${
+                  sortBy === 'price_asc' ? 'text-black font-bold' : 'text-neutral-300 hover:text-neutral-500 font-medium'
+                }`}
+              >
+                Price: Low to High
+              </li>
+              <li 
+                onClick={() => setSortBy('price_desc')}
+                className={`cursor-pointer transition-colors ${
+                  sortBy === 'price_desc' ? 'text-black font-bold' : 'text-neutral-300 hover:text-neutral-500 font-medium'
+                }`}
+              >
+                Price: High to Low
+              </li>
             </ul>
           </div>
         </nav>
@@ -197,26 +281,26 @@ export default function PrivateDashboard({ displayName, bio, items }: DashboardP
       <main className="flex-grow">
         <div className="flex justify-between items-end mb-8 border-b border-gray-100 pb-4">
           <h3 className="text-[10px] uppercase tracking-[0.2em] font-bold text-gray-300">
-            The Collection
+            {mode === 'wishlist' ? 'The Wishlist' : 'The Collection'}
           </h3>
           <button 
             onClick={() => setIsDrawerOpen(true)}
             className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-md text-[10px] font-bold uppercase tracking-widest transition-all shadow-sm hover:shadow-md active:scale-95"
           >
-            + Add Piece
+            {mode === 'wishlist' ? '+ Add Wishlist Item' : '+ Add Piece'}
           </button>
         </div>
 
         {items.length === 0 ? (
           <div className="py-32 border-2 border-dashed border-gray-100 rounded-xl bg-[#fafafa] flex flex-col items-center justify-center">
             <p className="text-gray-400 italic text-sm mb-4">
-              Your archive is currently empty.
+              {mode === 'wishlist' ? 'Your wishlist is currently empty.' : 'Your archive is currently empty.'}
             </p>
             <button 
               onClick={() => setIsDrawerOpen(true)}
               className="text-[10px] uppercase tracking-[0.2em] font-bold text-emerald-600 hover:underline"
             >
-              Start your first entry
+              {mode === 'wishlist' ? 'Add your first desired item' : 'Start your first entry'}
             </button>
           </div>
         ) : filteredAndSortedItems.length === 0 ? (
@@ -265,26 +349,67 @@ export default function PrivateDashboard({ displayName, bio, items }: DashboardP
                       </div>
                     )}
 
-                    {/* Heart Icon Button */}
+                    {/* Delete Button (Left side of card header) */}
                     <button
-                      onClick={(e) => handleToggleFavorite(e, item.id, isFavorite)}
-                      className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/90 backdrop-blur-xs shadow-xs hover:bg-white transition-all cursor-pointer group/heart"
+                      onClick={(e) => handleDeleteItem(e, item.id, item.model)}
+                      className="absolute top-3 left-3 z-10 p-1.5 rounded-full bg-white/90 backdrop-blur-xs shadow-xs hover:bg-neutral-200 text-neutral-400 hover:text-neutral-850 transition-all cursor-pointer"
+                      title="Delete Item"
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
                         viewBox="0 0 24 24"
-                        className={`w-4 h-4 transition-colors ${
-                          isFavorite
-                            ? "fill-rose-500 stroke-rose-500"
-                            : "fill-transparent stroke-rose-400 group-hover/heart:stroke-rose-600"
-                        }`}
-                        strokeWidth="2.5"
+                        className="w-3.5 h-3.5 fill-none stroke-current"
+                        strokeWidth="3.5"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                       >
-                        <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
                     </button>
+
+                    {/* Move to Closet Button (Right side, Only for Wishlist mode) */}
+                    {mode === 'wishlist' && (
+                      <button
+                        onClick={(e) => handleMoveToCloset(e, item.id)}
+                        className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/90 backdrop-blur-xs shadow-xs hover:bg-emerald-600 hover:text-white transition-all cursor-pointer group/owned text-neutral-600"
+                        title="Mark as Owned / Move to Closet"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          className="w-4 h-4 fill-none stroke-current"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </button>
+                    )}
+
+                    {/* Heart Icon Button (Right side, Only for Closet mode) */}
+                    {mode === 'closet' && (
+                      <button
+                        onClick={(e) => handleToggleFavorite(e, item.id, isFavorite)}
+                        className="absolute top-3 right-3 z-10 p-1.5 rounded-full bg-white/90 backdrop-blur-xs shadow-xs hover:bg-white transition-all cursor-pointer group/heart"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          className={`w-4 h-4 transition-colors ${
+                            isFavorite
+                              ? "fill-rose-500 stroke-rose-500"
+                              : "fill-transparent stroke-rose-400 group-hover/heart:stroke-rose-600"
+                          }`}
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
 
                   {/* Meta Data */}
@@ -324,6 +449,7 @@ export default function PrivateDashboard({ displayName, bio, items }: DashboardP
       <AddItemDrawer 
         isOpen={isDrawerOpen} 
         onClose={() => setIsDrawerOpen(false)} 
+        isWishlist={mode === 'wishlist'}
       />
     </div>
   );

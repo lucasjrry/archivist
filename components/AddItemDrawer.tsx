@@ -5,11 +5,12 @@ import { scrapeProductMetadata, saveItem, getBrandSuggestions, getItemSuggestion
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  isWishlist?: boolean;
 }
 
 const CATEGORIES = ["Outerwear", "Tops", "Bottoms", "Footwear", "Accessories", "Headwear", "Other"];
 
-export default function AddItemDrawer({ isOpen, onClose }: Props) {
+export default function AddItemDrawer({ isOpen, onClose, isWishlist }: Props) {
   const [loading, setLoading] = useState(false);
   const [scraperStatus, setScraperStatus] = useState<'loading' | 'success' | 'error' | null>(null);
   const [url, setUrl] = useState("");
@@ -147,7 +148,8 @@ export default function AddItemDrawer({ isOpen, onClose }: Props) {
       purchase_price: parsedPrice && !isNaN(parsedPrice) ? parsedPrice : null,
       isManualImage,
       brandId: selectedBrandId,
-      canonicalItemId: selectedItemId
+      canonicalItemId: selectedItemId,
+      is_wishlist: isWishlist ?? false,
     });
     setLoading(false);
     if (result.success) handleClose();
@@ -160,7 +162,7 @@ export default function AddItemDrawer({ isOpen, onClose }: Props) {
       <div className={`fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform duration-300 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-8 h-full flex flex-col text-black overflow-y-auto">
           <div className="flex justify-between items-center mb-8">
-            <h2 className="text-xl font-light italic uppercase tracking-widest">Add Piece</h2>
+            <h2 className="text-xl font-light italic uppercase tracking-widest">{isWishlist ? "Add Wishlist Item" : "Add Piece"}</h2>
             <button onClick={handleClose} className="text-gray-400">✕</button>
           </div>
 
@@ -262,7 +264,7 @@ export default function AddItemDrawer({ isOpen, onClose }: Props) {
                   type="number"
                   value={formData.purchase_price} 
                   onChange={e => setFormData({...formData, purchase_price: e.target.value})} 
-                  placeholder="Purchase Price ($)" 
+                  placeholder={isWishlist ? "Target / Retail Price ($)" : "Purchase Price ($)"} 
                   className="w-full border-b py-2 text-sm outline-none font-sans"
                   min="0"
                 />

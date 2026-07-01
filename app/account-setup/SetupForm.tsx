@@ -1,14 +1,62 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import Image from 'next/image'
 import { updateProfile } from './actions'
 
 export default function SetupForm() {
   // This state variable watches what the user types
   const [fullName, setFullName] = useState('')
+  const [avatarPreview, setAvatarPreview] = useState<string>('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
 
   return (
     <form action={updateProfile} className="flex flex-col gap-4">
+      {/* PROFILE PICTURE */}
+      <div>
+        <label className="block text-sm font-medium text-gray-750">Profile Picture (Optional)</label>
+        <div className="mt-2 flex items-center gap-4">
+          <div className="w-16 h-16 bg-gray-50 border border-gray-200 rounded flex-shrink-0 relative overflow-hidden flex items-center justify-center text-xs text-gray-400">
+            {avatarPreview ? (
+              <Image 
+                src={avatarPreview} 
+                alt="Profile Preview" 
+                fill 
+                className="object-cover" 
+              />
+            ) : (
+              "No Photo"
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="px-3 py-1.5 border border-gray-300 text-xs rounded hover:bg-gray-50 hover:text-black transition-colors text-gray-700 font-medium cursor-pointer"
+          >
+            Choose Picture
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <input type="hidden" name="avatarBase64" value={avatarPreview} />
+        </div>
+      </div>
+
       {/* USERNAME */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Username</label>

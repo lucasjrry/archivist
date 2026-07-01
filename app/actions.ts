@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache';
 /**
  * Utility to move images from external sites or local uploads into your private Supabase bucket.
  */
-async function uploadToSupabase(source: string, isManual: boolean) {
+export async function uploadToSupabase(source: string, isManual: boolean) {
   const supabase = await createClient();
 
   const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.jpg`;
@@ -337,6 +337,7 @@ export async function saveItem(formData: {
   brandId?: string | null;
   canonicalItemId?: string | null;
   purchase_price?: number | null;
+  is_wishlist?: boolean;
 }) {
   const supabase = await createClient();
   
@@ -449,11 +450,13 @@ export async function saveItem(formData: {
       canonical_item_id: canonicalItemId,
       is_custom_entry: true,
       purchase_price: formData.purchase_price,
+      is_wishlist: formData.is_wishlist ?? false,
     }]);
 
     if (dbError) throw dbError;
 
     revalidatePath('/closet');
+    revalidatePath('/wishlist');
     return { success: true };
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
@@ -476,10 +479,57 @@ export async function toggleFavorite(itemId: string, isFavorite: boolean) {
 
     if (error) throw error;
     revalidatePath('/closet');
+    revalidatePath('/wishlist');
     return { success: true };
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
     console.error("Toggle favorite failed:", errorMessage);
+    return { success: false, error: errorMessage };
+  }
+}
+
+export async function moveToCloset(itemId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    const { error } = await supabase
+      .from('closet_items')
+      .update({ is_wishlist: false })
+      .eq('id', itemId)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+    revalidatePath('/closet');
+    revalidatePath('/wishlist');
+    return { success: true };
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+    console.error("Move to closet failed:", errorMessage);
+    return { success: false, error: errorMessage };
+  }
+}
+
+export async function deleteItem(itemId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { success: false, error: "Not authenticated" };
+
+  try {
+    const { error } = await supabase
+      .from('closet_items')
+      .delete()
+      .eq('id', itemId)
+      .eq('user_id', user.id);
+
+    if (error) throw error;
+    revalidatePath('/closet');
+    revalidatePath('/wishlist');
+    return { success: true };
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : "An unknown error occurred";
+    console.error("Delete failed:", errorMessage);
     return { success: false, error: errorMessage };
   }
 }
