@@ -1,6 +1,7 @@
 "use client";
 import { useState, useRef } from 'react';
 import { scrapeProductMetadata, saveItem, getBrandSuggestions, getItemSuggestions } from '@/app/actions';
+import { compressImage } from '@/utils/image';
 
 interface Props {
   isOpen: boolean;
@@ -73,17 +74,31 @@ export default function AddItemDrawer({ isOpen, onClose, isWishlist }: Props) {
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, image_url: reader.result as string }));
+      if (file.size > 15 * 1024 * 1024) {
+        alert("The selected file is too large (over 15MB). Please select a smaller image.");
+        e.target.value = "";
+        return;
+      }
+      try {
+        const compressedBase64 = await compressImage(file);
+        setFormData(prev => ({ ...prev, image_url: compressedBase64 }));
         setIsManualImage(true);
-        setFoundImages([]); // Clear scraped images if manual upload is used
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        console.error("Failed to compress image:", err);
+        // Fallback: read file raw if compression fails
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFormData(prev => ({ ...prev, image_url: reader.result as string }));
+          setIsManualImage(true);
+        };
+        reader.readAsDataURL(file);
+      }
     }
+    // Clear the input value so selecting the same file again fires the change event
+    e.target.value = "";
   };
 
   const handleBrandChange = async (val: string) => {
@@ -190,14 +205,29 @@ export default function AddItemDrawer({ isOpen, onClose, isWishlist }: Props) {
             </div>
 
             {/* Manual Upload Section */}
-            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+            <div className={`bg-gray-50 p-4 rounded-lg border transition-all ${isManualImage ? 'border-neutral-800' : 'border-gray-100'}`}>
               <label className="block text-[10px] uppercase font-bold text-gray-400 mb-2">Option 2: Manual Upload</label>
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full py-4 border-2 border-dashed border-gray-200 rounded-lg text-xs text-gray-400 hover:border-black hover:text-black transition-all"
-              >
-                {isManualImage ? "Image Selected ✓" : "Click to select photo"}
-              </button>
+              <div className="flex gap-3 items-center">
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`flex-grow py-4 border-2 border-dashed rounded-lg text-xs transition-all ${
+                    isManualImage 
+                      ? 'border-neutral-800 text-neutral-800 font-bold bg-neutral-50' 
+                      : 'border-gray-200 text-gray-400 hover:border-black hover:text-black'
+                  }`}
+                >
+                  {isManualImage ? "Manual Image Active ✓" : "Click to select photo"}
+                </button>
+                {isManualImage && formData.image_url && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img 
+                    src={formData.image_url} 
+                    alt="Manual upload preview"
+                    className="w-12 h-16 object-cover border rounded bg-white shadow-xs"
+                  />
+                )}
+              </div>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
             </div>
 
@@ -293,6 +323,56 @@ export default function AddItemDrawer({ isOpen, onClose, isWishlist }: Props) {
                 ))}
               </div>
             )}
+
+            {/* Closet Card Preview */}
+            <div className="pt-6 border-t border-gray-150 space-y-4">
+              <label className="block text-[10px] uppercase font-bold text-gray-400 tracking-wider">
+                Closet Card Preview
+              </label>
+              <div className="max-w-[220px] mx-auto bg-white border border-gray-100 p-4 rounded-lg shadow-sm">
+                {/* Image Box */}
+                <div className="aspect-[3/4] bg-neutral-50 border border-neutral-100 mb-4 overflow-hidden relative">
+                  {formData.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img 
+                      src={formData.image_url} 
+                      alt={formData.model || "Preview"}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] text-gray-300 uppercase tracking-widest italic">
+                      No Preview
+                    </div>
+                  )}
+                </div>
+                {/* Meta Data */}
+                <div className="space-y-1 text-left">
+                  <p className="text-[10px] uppercase tracking-[0.2em] text-gray-400 font-bold truncate">
+                    {formData.brand.trim() || "Brand"}
+                  </p>
+                  <p className="text-sm font-medium text-black tracking-tight leading-snug truncate">
+                    {formData.model.trim() || "Model Name"}
+                  </p>
+                  <div className="flex items-center justify-between gap-2 mt-1">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {formData.color.trim() && (
+                        <span className="text-[10px] text-gray-400 font-light italic truncate">
+                          {formData.color.trim()}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-gray-250 uppercase tracking-widest font-sans truncate">
+                        {formData.category}
+                      </span>
+                    </div>
+                    {formData.purchase_price && (
+                      <span className="text-[10px] font-medium text-neutral-500 font-mono">
+                        ${formData.purchase_price}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <button onClick={handleConfirm} disabled={loading} className="w-full bg-black text-white py-5 text-[10px] font-bold uppercase tracking-[0.3em] mt-8 cursor-pointer hover:bg-neutral-800 transition-colors">

@@ -16,10 +16,16 @@ export async function uploadToSupabase(source: string, isManual: boolean) {
   if (isManual) {
     const base64Data = source.split(',')[1];
     fileBody = Buffer.from(base64Data, 'base64');
+    if (fileBody.length > 2 * 1024 * 1024) {
+      throw new Error("Uploaded image exceeds the 2MB server limit.");
+    }
   } else {
     const res = await fetch(source);
     if (!res.ok) throw new Error("Failed to fetch remote image");
     fileBody = await res.blob();
+    if (fileBody.size > 2 * 1024 * 1024) {
+      throw new Error("Scraped remote image exceeds the 2MB server limit.");
+    }
   }
 
   const { error } = await supabase.storage

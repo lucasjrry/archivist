@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { updateProfile } from './actions'
+import { compressImage } from '@/utils/image'
 
 export default function SetupForm() {
   // This state variable watches what the user types
@@ -10,14 +11,25 @@ export default function SetupForm() {
   const [avatarPreview, setAvatarPreview] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string)
+      if (file.size > 15 * 1024 * 1024) {
+        alert("The selected file is too large (over 15MB). Please select a smaller image.")
+        e.target.value = ""
+        return
       }
-      reader.readAsDataURL(file)
+      try {
+        const compressedBase64 = await compressImage(file)
+        setAvatarPreview(compressedBase64)
+      } catch (err) {
+        console.error("Failed to compress avatar image:", err)
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          setAvatarPreview(reader.result as string)
+        }
+        reader.readAsDataURL(file)
+      }
     }
   }
 

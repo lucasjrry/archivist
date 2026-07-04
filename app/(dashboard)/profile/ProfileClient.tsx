@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { updateProfileSettings, updateShowcaseItems, updateFavoriteBrands } from './actions';
 import { getBrandSuggestions } from '@/app/actions';
+import { compressImage } from '@/utils/image';
 
 interface ClosetItem {
   id: string;
@@ -85,14 +86,25 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
   }, [brandSearchQuery]);
 
   // Profile Form Change Handlers
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      if (file.size > 15 * 1024 * 1024) {
+        alert("The selected file is too large (over 15MB). Please select a smaller image.");
+        e.target.value = "";
+        return;
+      }
+      try {
+        const compressedBase64 = await compressImage(file);
+        setAvatarPreview(compressedBase64);
+      } catch (err) {
+        console.error('Failed to compress avatar image:', err);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAvatarPreview(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -238,14 +250,14 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
 
   const activityGroups: ActivityGroup[] = [];
   allItems.forEach(item => {
-    const dateStr = item.created_at 
-      ? new Date(item.created_at).toLocaleDateString(undefined, { 
-          year: 'numeric', 
-          month: 'long', 
-          day: 'numeric' 
-        })
+    const dateStr = item.created_at
+      ? new Date(item.created_at).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      })
       : 'Unknown Date';
-      
+
     let group = activityGroups.find(g => g.date === dateStr);
     if (!group) {
       group = { date: dateStr, items: [] };
@@ -299,11 +311,11 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
             <div className="flex items-center gap-6">
               <div className="w-20 h-20 bg-neutral-50 border border-neutral-200 rounded-md flex-shrink-0 relative overflow-hidden flex items-center justify-center text-[10px] text-neutral-400 shadow-2xs">
                 {avatarPreview ? (
-                  <Image 
-                    src={avatarPreview} 
-                    alt="Profile Preview" 
-                    fill 
-                    className="object-cover" 
+                  <Image
+                    src={avatarPreview}
+                    alt="Profile Preview"
+                    fill
+                    className="object-cover"
                   />
                 ) : (
                   "No Photo"
@@ -330,8 +342,8 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
           {/* USERNAME (READ-ONLY) */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-400">Username</label>
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={currentProfile.username ? `@${currentProfile.username}` : ''}
               disabled
               className="w-full border-b border-gray-200 py-2 text-sm outline-none font-sans text-neutral-400 bg-transparent select-none cursor-not-allowed"
@@ -342,10 +354,10 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
           {/* FULL NAME */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="fullName" className="text-[10px] uppercase tracking-wider font-bold text-neutral-400">Full Name</label>
-            <input 
+            <input
               id="fullName"
-              name="fullName" 
-              type="text" 
+              name="fullName"
+              type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Enter your name"
@@ -357,9 +369,9 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
           {/* BIO */}
           <div className="flex flex-col gap-1.5">
             <label htmlFor="bio" className="text-[10px] uppercase tracking-wider font-bold text-neutral-400">Bio</label>
-            <textarea 
+            <textarea
               id="bio"
-              name="bio" 
+              name="bio"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               placeholder="Tell us about your style curation..."
@@ -376,14 +388,14 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
           )}
 
           <div className="flex gap-4">
-            <button 
-              type="submit" 
-              disabled={loading} 
+            <button
+              type="submit"
+              disabled={loading}
               className="flex-1 bg-black text-white py-3.5 text-[10px] font-bold uppercase tracking-[0.3em] cursor-pointer hover:bg-neutral-800 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               {loading ? "Saving..." : "Save Changes"}
             </button>
-            <button 
+            <button
               type="button"
               onClick={() => {
                 setIsEditing(false);
@@ -408,8 +420,8 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
         {/* Avatar Image */}
         <div className="w-28 h-28 bg-neutral-100 border border-neutral-200 rounded-xl overflow-hidden relative shadow-sm flex-shrink-0">
           {currentProfile.avatar_url ? (
-            <Image 
-              src={currentProfile.avatar_url} 
+            <Image
+              src={currentProfile.avatar_url}
               alt={displayName}
               fill
               sizes="112px"
@@ -470,9 +482,6 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
             <h3 className="text-[10px] uppercase font-bold tracking-[0.25em] text-neutral-400">
               Item Showcase
             </h3>
-            <span className="text-[9px] uppercase tracking-wider text-neutral-300">
-              Select up to 4 items
-            </span>
           </header>
 
           <div className="grid grid-cols-4 gap-2 sm:gap-3">
@@ -480,14 +489,14 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
               if (item) {
                 return (
                   <div key={item.id} className="relative aspect-[2/3] w-full bg-neutral-50 border border-neutral-150 overflow-hidden rounded shadow-2xs group">
-                    <Image 
-                      src={item.image_url || '/placeholder.png'} 
+                    <Image
+                      src={item.image_url || '/placeholder.png'}
                       alt={item.model}
                       fill
                       sizes="(max-width: 640px) 50vw, 25vw"
                       className="object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                    
+
                     {/* Hover Overlay */}
                     <div className="absolute inset-0 bg-black/75 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-3.5 text-white">
                       <button
@@ -511,7 +520,7 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
               }
 
               return (
-                <div 
+                <div
                   key={`empty-item-${index}`}
                   onClick={() => setActiveItemSlot(index)}
                   className="aspect-[2/3] w-full border border-dashed border-neutral-300 hover:border-neutral-800 bg-neutral-50/20 hover:bg-neutral-50/70 transition-all duration-300 flex flex-col items-center justify-center cursor-pointer rounded group relative"
@@ -534,17 +543,14 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
             <h3 className="text-[10px] uppercase font-bold tracking-[0.25em] text-neutral-400">
               Favorite Brands
             </h3>
-            <span className="text-[9px] uppercase tracking-wider text-neutral-300">
-              Top 4 curatorships
-            </span>
           </header>
 
           <div className="grid grid-cols-4 gap-2 sm:gap-3">
             {brandSlots.map((brand, index) => {
               if (brand) {
                 return (
-                  <div 
-                    key={`brand-${index}`} 
+                  <div
+                    key={`brand-${index}`}
                     className="relative aspect-[2/3] w-full bg-gradient-to-br from-neutral-900 to-neutral-950 border border-neutral-850 rounded shadow-sm group flex flex-col items-center justify-center p-4 text-center"
                   >
                     {/* Brand Name Text (Poster-like style) */}
@@ -570,7 +576,7 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
               }
 
               return (
-                <div 
+                <div
                   key={`empty-brand-${index}`}
                   onClick={() => setActiveBrandSlot(index)}
                   className="aspect-[2/3] w-full border border-dashed border-neutral-300 hover:border-neutral-800 bg-neutral-50/20 hover:bg-neutral-50/70 transition-all duration-300 flex flex-col items-center justify-center cursor-pointer rounded group relative"
@@ -610,8 +616,8 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
                     <div key={item.id} className="flex items-start gap-4 p-3 border border-neutral-100/70 hover:border-neutral-200 rounded-lg hover:bg-neutral-50/30 transition-all group">
                       {/* Item Image */}
                       <div className="relative w-14 h-18 sm:w-16 sm:h-20 bg-neutral-50 border border-neutral-150 rounded overflow-hidden flex-shrink-0">
-                        <Image 
-                          src={item.image_url || '/placeholder.png'} 
+                        <Image
+                          src={item.image_url || '/placeholder.png'}
                           alt={item.model}
                           fill
                           sizes="64px"
@@ -631,7 +637,7 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
                               Added to closet
                             </span>
                           )}
-                          
+
                           <span className="text-[10px] text-neutral-400 font-mono font-medium">
                             at {getLocalTimeString(item.created_at)}
                           </span>
@@ -679,7 +685,7 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
               <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
                 Select Item (Slot {activeItemSlot + 1})
               </h3>
-              <button 
+              <button
                 onClick={() => {
                   setActiveItemSlot(null);
                   setItemSearchQuery('');
@@ -692,7 +698,7 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
 
             {/* Modal Search */}
             <div className="p-4 border-b border-neutral-100 bg-neutral-50/50">
-              <input 
+              <input
                 type="text"
                 placeholder="Search by brand or model..."
                 value={itemSearchQuery}
@@ -705,14 +711,14 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
             <div className="p-4 overflow-y-auto flex-1 space-y-2">
               {availableItems.length > 0 ? (
                 availableItems.map((item) => (
-                  <div 
+                  <div
                     key={item.id}
                     onClick={() => handleSelectShowcaseItem(item.id, activeItemSlot)}
                     className="flex items-center gap-4 p-2 rounded-lg hover:bg-neutral-50 border border-transparent hover:border-neutral-100 cursor-pointer transition-all duration-200"
                   >
                     <div className="relative w-12 h-16 bg-neutral-100 border border-neutral-200 overflow-hidden flex-shrink-0 rounded-sm">
-                      <Image 
-                        src={item.image_url || '/placeholder.png'} 
+                      <Image
+                        src={item.image_url || '/placeholder.png'}
                         alt={item.model}
                         fill
                         sizes="48px"
@@ -756,7 +762,7 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
               <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500">
                 Select Brand (Slot {activeBrandSlot + 1})
               </h3>
-              <button 
+              <button
                 onClick={() => {
                   setActiveBrandSlot(null);
                   setBrandSearchQuery('');
@@ -771,7 +777,7 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
             <div className="p-6 space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-400">Search or Type Brand</label>
-                <input 
+                <input
                   type="text"
                   placeholder="e.g. Prada, Yohji Yamamoto..."
                   value={brandSearchQuery}
@@ -794,7 +800,7 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
                   )}
 
                   {!loadingBrandSuggestions && brandSuggestions.map((brand) => (
-                    <div 
+                    <div
                       key={brand.id}
                       onClick={() => handleSelectFavoriteBrand(brand.name, activeBrandSlot)}
                       className="flex items-center justify-between px-3 py-2 text-xs hover:bg-neutral-50 rounded cursor-pointer transition-colors text-neutral-800 font-medium"
@@ -806,7 +812,7 @@ export default function ProfileClient({ profile, allItems }: ProfileClientProps)
 
                   {/* Add typed custom brand */}
                   {brandSearchQuery.trim() && !brandSuggestions.some(b => b.name.toLowerCase() === brandSearchQuery.trim().toLowerCase()) && (
-                    <div 
+                    <div
                       onClick={() => handleSelectFavoriteBrand(brandSearchQuery.trim(), activeBrandSlot)}
                       className="flex items-center justify-between px-3 py-2 text-xs hover:bg-neutral-50 rounded cursor-pointer transition-colors text-neutral-500 italic"
                     >
